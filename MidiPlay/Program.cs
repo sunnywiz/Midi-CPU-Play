@@ -15,11 +15,34 @@ namespace MidiPlay
         {
             try
             {
-                PerformanceCounter counter = new PerformanceCounter("Processor Information","% Processor Time","_Total");
-                while (true)
+                int midiOutDevice = 0; // GS Wavetable Synth
+                PerformanceCounter counter = new PerformanceCounter("Processor","% Processor Time","_Total");
+                using (var midiOut = new MidiOut(midiOutDevice))
                 {
-                    Console.WriteLine(counter.NextValue());
-                    System.Threading.Thread.Sleep(2000); 
+                    NoteOnEvent lastNote = null; 
+                    midiOut.Send(new PatchChangeEvent(0,1,74).GetAsShortMessage());  // Flute
+                    float minValue = 0.0f;
+                    float maxValue = 100.0f; 
+                    while (true)
+                    {
+                        var rawValue = counter.NextValue();
+                        if (rawValue < minValue) rawValue = minValue;
+                        if (rawValue > maxValue) rawValue = maxValue;
+                        var cooked = (rawValue - minValue) / (maxValue - minValue);   // 0..1
+
+                        Console.WriteLine($"{rawValue:F2} {cooked:P}");
+
+                        var velocity = (int) (cooked * 127.0);
+                        var note = (int) (cooked * 24) + 40;
+                        var nextNote = new NoteOnEvent(0, 1, note, velocity, 0); 
+                        if (lastNote != null)
+                        {
+                            midiOut.Send(lastNote.OffEvent.GetAsShortMessage());
+                        }
+                        midiOut.Send(nextNote.GetAsShortMessage());
+                        lastNote = nextNote; 
+                        System.Threading.Thread.Sleep(2000);
+                    }
                 }
             }
             catch (Exception ex)
