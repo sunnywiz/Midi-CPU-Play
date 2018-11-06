@@ -15,34 +15,12 @@ namespace MidiPlay
         {
             try
             {
-                // IterateMidiOutDevices();
-                // RandomlyPlaystuff();
-
-                HashSet<string> wasDenied = new HashSet<string>();
+                PerformanceCounter counter = new PerformanceCounter("Processor Information","% Processor Time","_Total");
                 while (true)
                 {
-                    var processes = System.Diagnostics.Process.GetProcesses();
-                    Console.WriteLine(processes.Length);
-                    for (int i = 0; i < processes.Length; i++)
-                    {
-                        var process = processes[i];
-                        if (wasDenied.Contains(process.ProcessName)) continue; 
-                        Console.Write(process.ProcessName);
-                        Console.Write(" ");
-                        try
-                        {
-                            Console.WriteLine(process.TotalProcessorTime);
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine(ex.Message);
-                            wasDenied.Add(process.ProcessName); 
-                        }
-                    }
-                    System.Threading.Thread.Sleep(2000);
-                    Console.WriteLine();
+                    Console.WriteLine(counter.NextValue());
+                    System.Threading.Thread.Sleep(2000); 
                 }
-
             }
             catch (Exception ex)
             {
@@ -51,6 +29,34 @@ namespace MidiPlay
             finally
             {
                 Console.WriteLine("Done");
+            }
+        }
+
+        private static void MonitorPerProcessCPUUsage()
+        {
+            HashSet<string> wasDenied = new HashSet<string>();
+            while (true)
+            {
+                var processes = System.Diagnostics.Process.GetProcesses();
+                Console.WriteLine(processes.Length);
+                for (int i = 0; i < processes.Length; i++)
+                {
+                    var process = processes[i];
+                    if (wasDenied.Contains(process.ProcessName)) continue;
+                    Console.Write(process.ProcessName);
+                    Console.Write(" ");
+                    try
+                    {
+                        Console.WriteLine(process.TotalProcessorTime);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine(ex.Message);
+                        wasDenied.Add(process.ProcessName);
+                    }
+                }
+                System.Threading.Thread.Sleep(2000);
+                Console.WriteLine();
             }
         }
 
