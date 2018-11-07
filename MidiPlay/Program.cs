@@ -9,49 +9,8 @@ using NAudio.Midi;
 
 namespace MidiPlay
 {
-    class Program
+    partial class Program
     {
-        public class PerfCounterScaling
-        {
-            public float MinValue { get; set; } = 0.0f;
-            public float MaxValue { get; set; } = 1.0f;
-
-            public float Scale(float rawValue)
-            {
-                if (rawValue < MinValue) MinValue = rawValue;
-                if (rawValue > MaxValue) MaxValue = rawValue;
-                var cooked = (rawValue - MinValue) / (MaxValue - MinValue);   // 0..1
-                return cooked; 
-            }
-        }
-
-        public class MidiSingleNoteTracker
-        {
-            private readonly MidiOut _midiOut;
-            private readonly int _channel;
-            private readonly int _patch;
-
-            public MidiSingleNoteTracker(MidiOut midiOut, int channel, int patch)
-            {
-                _midiOut = midiOut;
-                _channel = channel;
-                _patch = patch;
-
-                midiOut.Send(new PatchChangeEvent(0, channel, patch).GetAsShortMessage());  // Flute
-            }
-            public NoteOnEvent PlayingNote { get; set; }
-
-            public void PlayNewNote(int note, int velocity)
-            {
-                var nextNote = new NoteOnEvent(0, _channel, note, velocity, 0);
-                if (PlayingNote != null)
-                {
-                    _midiOut.Send(PlayingNote.OffEvent.GetAsShortMessage());
-                }
-                _midiOut.Send(nextNote.GetAsShortMessage());
-                PlayingNote = nextNote;
-            }
-        }
 
         static void Main(string[] args)
         {
@@ -71,34 +30,45 @@ namespace MidiPlay
                 using (var midiOut = new MidiOut(midiOutDevice))
                 {
                     NoteOnEvent lastNote = null;
-                    PerfCounterScaling pcf1 = new PerfCounterScaling() {MaxValue = 100.0f};
-                    PerfCounterScaling pcf2 = new PerfCounterScaling() {MaxValue = 100.0f};
+
+                    PerfCounterScaling pcfCpu = new PerfCounterScaling() {MaxValue = 100.0f};
+                    Averager cpuAvg = new Averager(10, 0.1f);
+                    PerfCounterScaling pcuDisk = new PerfCounterScaling() {MaxValue = 100.0f};
 
                     var mtPiano = new MidiSingleNoteTracker(midiOut, 1, 0);
                     var mtStrings1 = new MidiSingleNoteTracker(midiOut, 2, 49);
-                    
+
                     while (true)
                     {
-                        var rawValue = cpuCounter.NextValue();
-                        var cooked = pcf1.Scale(rawValue);
-                        MapToNote(cooked, cooked, minorNotes, mtPiano, true);
-                        System.Threading.Thread.Sleep(500);
+                        var cpu = GetNextScaledValueOrNull(cpuCounter, pcfCpu, cpuAvg);
+                        var visualStudioCpu = GetNextScaledValueOrNull(visualStudio, pcfCpu);
 
-                        try
+                        if ((cpu.HasValue && (cpu > 0.5 || cpuAvg.AverageValue > 0.5)) ||
+                            (visualStudioCpu.HasValue && visualStudioCpu > 0.5))
                         {
-                            var x = visualStudio.NextValue();
-                            cooked = pcf1.Scale(x);
-                            MapToNote(cooked, cooked, minorNotes, mtPiano, true); 
+                            MapToNote(cpu.Value, cpuAvg.AverageValue, minorNotes, mtPiano, true);
+                            System.Threading.Thread.Sleep(500);
+                            if (visualStudioCpu.HasValue)
+                            {
+                                MapToNote(visualStudioCpu.Value, visualStudioCpu.Value, minorNotes, mtPiano, true);
+                            }
+                            System.Threading.Thread.Sleep(500);
                         }
-                        catch (Exception ex)
+                        else
                         {
-                            // ignore
+                            mtPiano.StopPlaying();
+                            System.Threading.Thread.Sleep(1000);
                         }
-                        System.Threading.Thread.Sleep(500);
 
-                        rawValue = diskPercentCounter.NextValue();
-                        cooked = pcf2.Scale(rawValue);
-                        MapToNote(cooked, (cooked * 0.5f)+0.1f, minorNotes, mtStrings1, false);
+
+                        var disk = GetNextScaledValueOrNull(diskPercentCounter, pcuDisk, null);
+                        if (disk.HasValue)
+                        {
+                            MapToNote(disk.Value, 0.25f, minorNotes, mtStrings1, false);
+                        }
+
+                        Console.WriteLine($"cpu:{cpu:P}/{cpuAvg.AverageValue:P} vs:{visualStudioCpu:P} disk:{disk:P}");
+
                         System.Threading.Thread.Sleep(1000);
 
                     }
@@ -111,6 +81,25 @@ namespace MidiPlay
             finally
             {
                 Console.WriteLine("Done");
+            }
+        }
+
+        private static float? GetNextScaledValueOrNull(PerformanceCounter perfCounter, PerfCounterScaling scaler, Averager averager = null)
+        {
+            try
+            {
+                var rangedValue = perfCounter.NextValue();
+                var scaledValue = scaler.Scale(rangedValue);
+                if (averager != null)
+                {
+                    averager.Ingest(scaledValue); 
+                }
+                return scaledValue; 
+
+            }
+            catch (Exception ex)
+            {
+                return null;
             }
         }
 
