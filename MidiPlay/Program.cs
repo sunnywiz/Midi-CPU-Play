@@ -36,7 +36,8 @@ namespace MidiPlay
                     PerfCounterScaling pcuDisk = new PerfCounterScaling() {MaxValue = 100.0f};
 
                     var mtPiano = new MidiSingleNoteTracker(midiOut, 1, 0);
-                    var mtStrings1 = new MidiSingleNoteTracker(midiOut, 2, 49);
+                    var mtStrings = new MidiSingleNoteTracker(midiOut, 2, 49); 
+                    var mtGuitar = new MidiSingleNoteTracker(midiOut, 3, 26);
 
                     while (true)
                     {
@@ -46,30 +47,38 @@ namespace MidiPlay
                         if ((cpu.HasValue && (cpu > 0.5 || cpuAvg.AverageValue > 0.3)) ||
                             (visualStudioCpu.HasValue && visualStudioCpu > 0.5))
                         {
-                            MapToNote(cpu.Value, cpuAvg.AverageValue, minorNotes, mtPiano, true);
-                            System.Threading.Thread.Sleep(500);
+                            if (cpu.HasValue)
+                            {
+                                MapToNote(cpu.Value, cpuAvg.AverageValue, minorNotes, mtPiano, false);
+                            }
+                            System.Threading.Thread.Sleep(250);
                             if (visualStudioCpu.HasValue)
                             {
-                                MapToNote(visualStudioCpu.Value, visualStudioCpu.Value, minorNotes, mtPiano, true);
+                                MapToNote(visualStudioCpu.Value, visualStudioCpu.Value, minorNotes, mtGuitar, true);
                             }
-                            System.Threading.Thread.Sleep(500);
+                            System.Threading.Thread.Sleep(250);
                         }
                         else
                         {
-                            mtPiano.StopPlaying();
-                            System.Threading.Thread.Sleep(1000);
+                            //mtGuitar.StopPlaying();
+                            //mtPiano.StopPlaying();    they ring out
+                            System.Threading.Thread.Sleep(500);
                         }
 
 
                         var disk = GetNextScaledValueOrNull(diskPercentCounter, pcuDisk, null);
-                        if (disk.HasValue)
+                        if (disk.HasValue && disk.Value > 0.05)
                         {
-                            MapToNote(disk.Value, 0.25f, minorNotes, mtStrings1, false);
+                            MapToNote(disk.Value, 0.25f, minorNotes, mtStrings, false);
+                        }
+                        else
+                        {
+                            mtStrings.StopPlaying();
                         }
 
                         Console.WriteLine($"cpu:{cpu:P}/{cpuAvg.AverageValue:P} vs:{visualStudioCpu:P} disk:{disk:P}");
 
-                        System.Threading.Thread.Sleep(1000);
+                        System.Threading.Thread.Sleep(500);
 
                     }
                 }
