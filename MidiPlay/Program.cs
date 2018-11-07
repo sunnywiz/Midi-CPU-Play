@@ -43,7 +43,7 @@ namespace MidiPlay
                         var cpu = GetNextScaledValueOrNull(cpuCounter, pcfCpu, cpuAvg);
                         var visualStudioCpu = GetNextScaledValueOrNull(visualStudio, pcfCpu);
 
-                        if ((cpu.HasValue && (cpu > 0.5 || cpuAvg.AverageValue > 0.5)) ||
+                        if ((cpu.HasValue && (cpu > 0.5 || cpuAvg.AverageValue > 0.3)) ||
                             (visualStudioCpu.HasValue && visualStudioCpu > 0.5))
                         {
                             MapToNote(cpu.Value, cpuAvg.AverageValue, minorNotes, mtPiano, true);
